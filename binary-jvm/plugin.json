@@ -1,0 +1,13 @@
+{
+    "plugin": {
+        "name": "Java Bytecode Disassembler",
+        "type": ["architecture", "binaryview"],
+        "api": "python2",
+        "description": "Java Bytecode Architecture + Java Class File Binaryview",
+        "license": {
+            "name": "BSD-0-clause"
+        },
+        "version": "1.0",
+        "author": "Pusty"
+    }
+}
