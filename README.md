@@ -12,7 +12,7 @@ It also provides the functionality to NOP out instructions, change branch condit
 For using this plugin just drop the binary-jvm folder into your plugin folder.
 
 
-![boolFunctions](/docs/boolFunctions.PNG)
+![boolFunction](/docs/boolFunction.PNG)
 ![strings](/docs/strings.PNG)
 ![variables](/docs/variables.PNG)
 ![patching](/docs/patching.PNG)
