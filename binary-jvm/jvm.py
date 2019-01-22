@@ -218,11 +218,11 @@ def decode_instruction(data, addr):
                 offsets.append((lowbyte+i, addr+struct.unpack(">i", data[13+i*4+padding:17+i*4+padding])[0]))
             value = (default,lowbyte, highbyte, offsets)
         elif operand == TYPE_LOOKUPSWITCH:
-            padding = 4-((addr)%4)
+            padding = 4-((addr+1)%4)
             default,npairs = struct.unpack(">iI", data[1+padding:9+padding])
             default += addr
             offsets = []
-            length = (padding+8+1+npairs*4)
+            length = (padding+8+1+npairs*8)
             if len(data) < length:
                 return None, None, None, length
             for i in range(npairs):
