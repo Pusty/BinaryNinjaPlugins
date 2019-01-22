@@ -1054,8 +1054,8 @@ class ClassView(BinaryView):
             attributes_count = self._registerSymbol("attributes_count", 2)
             for i in range(attributes_count):
                 attr = JVMAttributeInfo(self.cR)        
-            if attr.attributeType == "BootstrapMethods":
-                self.cR.setBootstrap(attr)       
+                if attr.attributeType == "BootstrapMethods":
+                    self.cR.setBootstrap(attr)       
                 
             
             self.add_auto_segment(0, self.cR.index(), 0, self.cR.index(), SegmentFlag.SegmentReadable)
