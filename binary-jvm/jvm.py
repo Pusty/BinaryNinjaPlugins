@@ -162,7 +162,7 @@ OperandTokens = [
 	lambda self,value: [InstructionTextToken(InstructionTextTokenType.IntegerToken, "%d" % value)],  # TYPE_2BYTE
 	lambda self,value: [InstructionTextToken(InstructionTextTokenType.IntegerToken, "var_%d" % value)],  # TYPE_INDEX
     lambda self,value: [InstructionTextToken(InstructionTextTokenType.IntegerToken, "var_%d" % value[0]), InstructionTextToken(InstructionTextTokenType.OperandSeparatorToken, ", "), InstructionTextToken(InstructionTextTokenType.IntegerToken, "%d" % value[1])],  # TYPE_IINC
-    lambda self,value: [InstructionTextToken(InstructionTextTokenType.PossibleAddressToken, "0x%.2x" % value, value+PSEUDOMEMORY_TABLE)],  # TYPE_2BRANCH
+    lambda self,value: [InstructionTextToken(InstructionTextTokenType.PossibleAddressToken, "0x%.2x" % value, value)],  # TYPE_2BRANCH
     lambda self,value: [],  # TYPE_TABLESWITCH
     lambda self,value: [],  # TYPE_LOOKUPSWITCH
     lambda self,value: [InstructionTextToken(InstructionTextTokenType.IntegerToken, "Pool@%d" % value, value+PSEUDOMEMORY_TABLE)],  # TYPE_2INDEX
@@ -219,6 +219,7 @@ def decode_instruction(data, addr):
             value = (default,lowbyte, highbyte, offsets)
         elif operand == TYPE_LOOKUPSWITCH:
             padding = 4-((addr+1)%4)
+   
             default,npairs = struct.unpack(">iI", data[1+padding:9+padding])
             default += addr
             offsets = []
@@ -769,8 +770,16 @@ class JVMMethodInfo():
             start_address = self.code_attribute.attribute.start_address
             end_address = self.code_attribute.attribute.end_address
             name = self.classReader.constantPool.poolContent[self.name_index]
+            if name in self.classReader.registeredMethodList:
+                orig_name = name
+                posfix = 1
+                name = orig_name+"("+str(posfix)+")"
+                while name in self.classReader.registeredMethodList:
+                    posfix += 1
+                    name = orig_name+"("+str(posfix)+")"
+            self.classReader.registeredMethodList.append(name)
             self.classReader.view.add_auto_segment(0x1000000+0x100000*self.index, end_address-start_address, start_address, end_address-start_address, SegmentFlag.SegmentReadable |  SegmentFlag.SegmentExecutable)
-            self.classReader.view.add_function(0x1000000+0x100000*self.index) #register function   
+            self.classReader.view.add_function(0x1000000+0x100000*self.index) #register function
             self.classReader.view.define_auto_symbol(Symbol(SymbolType.DataSymbol, 0x1000000+0x100000*self.index, name))            
             
 
@@ -858,6 +867,8 @@ class JVMClassReader():
     constantPool = None
     
     bootstrap_attribute = None
+    registeredMethodList = []
+    
     
     def __init__(self,vi,da):
         self.view = vi
