@@ -3,8 +3,7 @@ import traceback
 import os
 
 from binaryninja import *
-                  
-
+            
 InstructionNames = [
 'nop', 'aconst_null', 'iconst_m1', 'iconst_0', 'iconst_1', 'iconst_2', 'iconst_3', 'iconst_4', 
 'iconst_5', 'lconst_0', 'lconst_1', 'fconst_0', 'fconst_1', 'fconst_2', 'dconst_0', 'dconst_1', 
@@ -255,6 +254,7 @@ def decode_instruction(data, addr):
         return instr, operand, length, value
         
 class JVM(Architecture):
+    
     name = "JVM"
     address_size = 2
     default_int_size = 1
@@ -262,8 +262,6 @@ class JVM(Architecture):
     regs = { "s": RegisterInfo("s", 1) }
     stack_pointer = "s"
     endianness = Endianness.BigEndian
-    constantPool = None
-        
 
     def perform_get_instruction_info(self, data, addr):
         instr, operand, length, value = decode_instruction(data, addr)
@@ -519,14 +517,12 @@ METHOD_HANDLE = 15
 METHOD_TYPE = 16
 INVOKE_DYNAMIC = 18
 class JVMConstantPool():
-    classReader = None
-    
-    poolSize = 0
-    poolContent = None
-    poolLocation = None
     
     def __init__(self, r):
         self.classReader = r
+        self.poolSize = 0
+        self.poolContent = None
+        self.poolLocation = None
         self.read()
     
     def getTagSize(self, tag):
@@ -599,8 +595,7 @@ class JVMConstantPool():
         return self.poolContent[index&0xFFFF]
       
 class JVMClassReference():
-    poolContent = None
-    index = 0
+
     def __init__(self,pool,r):
         self.poolContent = pool
         self.index = r
@@ -609,8 +604,7 @@ class JVMClassReference():
         return str(self.poolContent[self.index])
         
 class JVMStringReference():
-    poolContent = None
-    index = 0
+
     def __init__(self,pool,r):
         self.poolContent = pool
         self.index = r
@@ -619,9 +613,7 @@ class JVMStringReference():
         return '"'+str(self.poolContent[self.index])+'"'
         
 class JVMFieldReference():
-    poolContent = None
-    classReference = 0
-    nameAndType = 0
+
     def __init__(self,pool,i1,i2):
         self.poolContent = pool
         self.classReference   = i1
@@ -631,9 +623,7 @@ class JVMFieldReference():
         return str(self.poolContent[self.classReference])+"."+str(self.poolContent[self.nameAndType])
     
 class JVMMethodReference():
-    poolContent = None
-    classReference = 0
-    nameAndType = 0
+
     def __init__(self,pool,i1,i2):
         self.poolContent = pool
         self.classReference      = i1
@@ -643,9 +633,7 @@ class JVMMethodReference():
         return str(self.poolContent[self.classReference])+"."+str(self.poolContent[self.nameAndType])
         
 class JVMInterfaceMethodReference():
-    poolContent = None
-    classReference = 0
-    nameAndType = 0
+
     def __init__(self,pool,i1,i2):
         self.poolContent = pool
         self.classReference      = i1
@@ -655,9 +643,7 @@ class JVMInterfaceMethodReference():
         return str(self.poolContent[self.classReference])+"."+str(self.poolContent[self.nameAndType])
         
 class JVMNameAndTypeDescriptor():
-    poolContent = None
-    identifier = 0
-    encodedTypeDescriptor = 0
+
     def __init__(self,pool,i1,i2):
         self.poolContent = pool
         self.identifier            = i1
@@ -667,9 +653,7 @@ class JVMNameAndTypeDescriptor():
         return str(self.poolContent[self.identifier])#+"("+str(self.poolContent[self.encodedTypeDescriptor])+")"
         
 class JVMMethodHandle():
-    poolContent = None
-    kind = 0
-    index = 0
+
     def __init__(self,pool,i1,i2):
         self.poolContent = pool
         self.kind = i1
@@ -682,8 +666,7 @@ class JVMMethodHandle():
             return "==Error Parsing=="
         
 class JVMMethodType():
-    poolContent = None
-    index = 0
+
     def __init__(self,pool,i1):
         self.poolContent = pool
         self.index = i1
@@ -695,9 +678,7 @@ class JVMMethodType():
             return "==Error Parsing=="
 
 class JVMInvokeDynamic():
-    classReader = None
-    poolContent = None
-    something = 0
+
     def __init__(self,pool,s1,s2,cr):
         self.poolContent = pool
         self.bootstrap = s1
@@ -718,16 +699,14 @@ class JVMInvokeDynamic():
         #    return "==Error Parsing=="
         
 class JVMFieldInfo():
-    classReader = None
-    
-    access_flags = 0
-    name_index   = 0
-    descriptor_index = 0
-    attributes_count = 0
-    attributes = None
-    
+        
     def __init__(self, r):
         self.classReader = r
+        self.access_flags = 0
+        self.name_index   = 0
+        self.descriptor_index = 0
+        self.attributes_count = 0
+        self.attributes = None
         self.read()
     
     def read(self):
@@ -740,20 +719,16 @@ class JVMFieldInfo():
             self.attributes[i] = JVMAttributeInfo(self.classReader)
             
 class JVMMethodInfo():
-    classReader = None
-    
-    access_flags = 0
-    name_index   = 0
-    descriptor_index = 0
-    attributes_count = 0
-    attributes = None
-    
-    code_attribute = None
-    index = 0
-    
+
     def __init__(self, r, ind):
         self.classReader = r
         self.index = ind
+        self.access_flags = 0
+        self.name_index   = 0
+        self.descriptor_index = 0
+        self.attributes_count = 0
+        self.attributes = None
+        self.code_attribute = None
         self.read()
     
     def read(self):
@@ -784,15 +759,13 @@ class JVMMethodInfo():
             
 
 class JVMAttributeInfo():
-    classReader = None
-    
-    attribute_name_index = 0
-    attribute_length     = 0
-    attributeType        = None
-    attribute            = None 
     
     def __init__(self, r):
         self.classReader = r
+        self.attribute_name_index = 0
+        self.attribute_length     = 0
+        self.attributeType        = None
+        self.attribute            = None 
         self.read()
     
     def read(self):
@@ -840,13 +813,11 @@ class JVMCodeAttribute():
             self.attributes.append(JVMAttributeInfo(self.classReader))
 
 class JVMBootstrapMethods():
-    classReader = None
-    
-    num_bootstrap_methods = 0
-    bootstrap_methods = []
-    
+
     def __init__(self, r):
         self.classReader = r
+        self.num_bootstrap_methods = 0
+        self.bootstrap_methods = []
         self.read()
         
     def read(self):
@@ -861,19 +832,13 @@ class JVMBootstrapMethods():
         
         
 class JVMClassReader():
-    view = None
-    data = None
-    idx = 0
-    constantPool = None
-    
-    bootstrap_attribute = None
-    registeredMethodList = []
-    
-    
     def __init__(self,vi,da):
         self.view = vi
         self.data = da
         self.idx = 0    
+        self.constantPool = None
+        self.bootstrap_attribute = None
+        self.registeredMethodList = []
     def reset(self):
         self.idx = 0
     def readLong(self):
@@ -1045,7 +1010,7 @@ class ClassView(BinaryView):
      
     def init(self):
         try:
-            self.cR = JVMClassReader(self,self.parent_view)      
+            self.cR = JVMClassReader(self,self.parent_view)  
             self._registerSymbol("magic", 4)
             self._registerSymbol("minor_version", 2)
             self._registerSymbol("major_version", 2)
