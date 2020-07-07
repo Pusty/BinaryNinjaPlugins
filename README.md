@@ -16,3 +16,14 @@ For using this plugin just drop the binary-jvm folder into your plugin folder.
 ![strings](/docs/strings.PNG)
 ![variables](/docs/variables.PNG)
 ![patching](/docs/patching.PNG)
+
+
+## binary-xtensa
+
+binary-xtensa is a plugin for Binary Ninja providing functionality to analyze and disassemble the code within Xtensa ELF Files.
+Implemented decoding based on https://0x04.net/~mwk/doc/xtensa.pdf
+
+For using this plugin just drop the binary-xtensa folder into your plugin folder.
+
+
+![xtensa-graph](/docs/xtensa-graph.png)
