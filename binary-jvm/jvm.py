@@ -177,7 +177,7 @@ OperandTokens = [
 def decode_instruction(data, addr):
         if len(data) < 1:
             return None, None, None, None
-        opcode = ord(data[0])
+        opcode = data[0]
         instr = InstructionNames[opcode]
         if instr is None:
             return None, None, None, None
@@ -389,7 +389,7 @@ class JVM(Architecture):
                 value &= 0x0FFFFFF
             return struct.pack(format, value)
         except Exception as e:
-            print e
+            print(e)
             return None
         
     def assemble(self, code, addr=0):
@@ -567,9 +567,9 @@ class JVMStructure():
         self.structure.append(Type.float(4,False),name)
         return self.classReader.readFloat()
         
-    def readLong(self, name=''):
+    def readDouble(self, name=''):
         self.structure.append(Type.float(8,False),name)
-        return self.classReader.readLong()
+        return self.classReader.readDouble()
         
     def readStruct(self, obj, name=''):
         self.structure.append(obj.resultingType(),name)
@@ -645,21 +645,22 @@ class JVMConstantPool(JVMStructure):
         self.poolLocation = [0]*self.poolSize
         i = 0
         while i<self.poolSize-1:
-            entryName = "constant_pool["+str(i)+"]"
+            entryName = "constant_pool["+str(i+1)+"]"
             self.poolLocation[i+1] = self.classReader.index()
-            tag = self.readByte(entryName+"_tag")
+            tag = self.classReader.readByte() #self.readByte(entryName+"_tag")
+            self.classReader.idx -= 1
             size = self.getTagSize(tag)
             if size == 0:
                 print("Exception: Error Reading Constant Pool ("+str(tag)+")")
                 return
-            if  (tag == UTF_8):   self.poolContent[i+1] = self.readUTF(entryName)
-            elif(tag == INTEGER): self.poolContent[i+1] = self.readInt(entryName)
-            elif(tag == FLOAT):   self.poolContent[i+1] = self.readFloat(entryName)
+            if  (tag == UTF_8):   self.poolContent[i+1] = self.readStruct(JVMUTF8Info(self.classReader),entryName)
+            elif(tag == INTEGER): self.poolContent[i+1] = self.readStruct(JVMIntegerInfo(self.classReader),entryName)
+            elif(tag == FLOAT):   self.poolContent[i+1] = self.readStruct(JVMFloatInfo(self.classReader),entryName)
             elif(tag == LONG):    
-                self.poolContent[i+1] = self.readLong(entryName)
+                self.poolContent[i+1] = self.readStruct(JVMLongInfo(self.classReader),entryName)
                 i += 1
             elif(tag == DOUBLE): 
-                self.poolContent[i+1] = self.readDouble(entryName)
+                self.poolContent[i+1] = self.readStruct(JVMDoubleInfo(self.classReader),entryName)
                 i += 1
             elif(tag == CLASS_REFERENCE):     self.poolContent[i+1]    = self.readStruct(JVMClassReference(self.classReader),entryName)
             elif(tag == STRING_REFERENCE):    self.poolContent[i+1]    = self.readStruct(JVMStringReference(self.classReader),entryName)
@@ -674,6 +675,77 @@ class JVMConstantPool(JVMStructure):
 
     def get(self, index):
         return self.poolContent[index&0xFFFF]
+  
+class JVMUTF8Info(JVMStructure):
+
+    def __init__(self,r):
+        JVMStructure.__init__(self, r)
+        self.poolContent = self.classReader.constantPool
+        self.read()
+        
+    def read(self):
+        self.tag   = self.readByte("tag")
+        self.value = self.readUTF("value")
+        
+    def __str__(self):
+        return self.value
+        
+class JVMIntegerInfo(JVMStructure):
+
+    def __init__(self,r):
+        JVMStructure.__init__(self, r)
+        self.poolContent = self.classReader.constantPool
+        self.read()
+        
+    def read(self):
+        self.tag   = self.readByte("tag")
+        self.value = self.readInt("value")
+        
+    def __str__(self):
+        return str(self.value)
+     
+class JVMFloatInfo(JVMStructure):
+
+    def __init__(self,r):
+        JVMStructure.__init__(self, r)
+        self.poolContent = self.classReader.constantPool
+        self.read()
+        
+    def read(self):
+        self.tag   = self.readByte("tag")
+        self.value = self.readFloat("value")
+        
+    def __str__(self):
+        return str(self.value)
+     
+class JVMLongInfo(JVMStructure):
+
+    def __init__(self,r):
+        JVMStructure.__init__(self, r)
+        self.poolContent = self.classReader.constantPool
+        self.read()
+        
+    def read(self):
+        self.tag   = self.readByte("tag")
+        self.value = self.readLong("value")
+        
+    def __str__(self):
+        return str(self.value)
+
+     
+class JVMDoubleInfo(JVMStructure):
+
+    def __init__(self,r):
+        JVMStructure.__init__(self, r)
+        self.poolContent = self.classReader.constantPool
+        self.read()
+        
+    def read(self):
+        self.tag   = self.readByte("tag")
+        self.value = self.readDouble("value")
+        
+    def __str__(self):
+        return str(self.value)
       
 class JVMClassReference(JVMStructure):
 
@@ -683,6 +755,7 @@ class JVMClassReference(JVMStructure):
         self.read()
         
     def read(self):
+        self.tag   = self.readByte("tag")
         self.index = self.readShort("index")
         
     def __str__(self):
@@ -696,6 +769,7 @@ class JVMStringReference(JVMStructure):
         self.read()
         
     def read(self):
+        self.tag   = self.readByte("tag")
         self.index = self.readShort("index")
         
     def __str__(self):
@@ -709,6 +783,7 @@ class JVMFieldReference(JVMStructure):
         self.read()
         
     def read(self):
+        self.tag   = self.readByte("tag")
         self.classReference   = self.readShort("classReference")
         self.nameAndType      = self.readShort("nameAndType")
         
@@ -723,6 +798,7 @@ class JVMMethodReference(JVMStructure):
         self.read()
         
     def read(self):
+        self.tag   = self.readByte("tag")
         self.classReference   = self.readShort("classReference")
         self.nameAndType      = self.readShort("nameAndType")
         
@@ -737,6 +813,7 @@ class JVMInterfaceMethodReference(JVMStructure):
         self.read()
         
     def read(self):
+        self.tag   = self.readByte("tag")
         self.classReference   = self.readShort("classReference")
         self.nameAndType      = self.readShort("nameAndType")
         
@@ -751,6 +828,7 @@ class JVMNameAndTypeDescriptor(JVMStructure):
         self.read()
         
     def read(self):
+        self.tag   = self.readByte("tag")
         self.identifier            = self.readShort("identifier")
         self.encodedTypeDescriptor = self.readShort("encodedTypeDescriptor")
         
@@ -765,6 +843,7 @@ class JVMMethodHandle(JVMStructure):
         self.read()
         
     def read(self):
+        self.tag   = self.readByte("tag")
         self.kind  = self.readShort("kind")
         self.index = self.readShort("index")
         
@@ -782,6 +861,7 @@ class JVMMethodType(JVMStructure):
         self.read()
         
     def read(self):
+        self.tag   = self.readByte("tag")
         self.index = self.readShort("index")
         
     def __str__(self):
@@ -798,6 +878,7 @@ class JVMInvokeDynamic(JVMStructure):
         self.read()
         
     def read(self):
+        self.tag   = self.readByte("tag")
         self.bootstrap = self.readShort("bootstrap")
         self.nat = self.readShort("nat")         
         
@@ -852,7 +933,7 @@ class JVMMethodInfo(JVMStructure):
         if self.code_attribute != None:
             start_address = self.code_attribute.attribute.start_address
             end_address = self.code_attribute.attribute.end_address
-            name = self.classReader.constantPool.poolContent[self.name_index]
+            name = str(self.classReader.constantPool.poolContent[self.name_index])
             if name in self.classReader.registeredMethodList:
                 orig_name = name
                 posfix = 1
@@ -863,7 +944,7 @@ class JVMMethodInfo(JVMStructure):
             self.classReader.registeredMethodList.append(name)
             self.classReader.view.add_auto_segment(0x1000000+0x100000*self.index, end_address-start_address, start_address, end_address-start_address, SegmentFlag.SegmentReadable |  SegmentFlag.SegmentExecutable)
             self.classReader.view.add_function(0x1000000+0x100000*self.index) #register function
-            self.classReader.view.define_auto_symbol(Symbol(SymbolType.DataSymbol, 0x1000000+0x100000*self.index, name))            
+            self.classReader.view.define_auto_symbol(Symbol(SymbolType.FunctionSymbol, 0x1000000+0x100000*self.index, name))            
             
 
 class JVMAttributeInfo(JVMStructure):
@@ -875,14 +956,154 @@ class JVMAttributeInfo(JVMStructure):
     def read(self):
         self.attribute_name_index = self.readShort("attribute_name_index")
         self.attribute_length   = self.readInt("attribute_length")
-        self.attributeType = self.classReader.constantPool.get(self.attribute_name_index)
+        self.attributeType = str(self.classReader.constantPool.get(self.attribute_name_index))
         self.attribute            = None 
         if self.attributeType == "Code":
             self.attribute = self.readStruct(JVMCodeAttribute(self.classReader),"attribute")
         elif self.attributeType == "BootstrapMethods":
             self.attribute = self.readStruct(JVMBootstrapMethods(self.classReader),"attribute")
+        elif self.attributeType == "ConstantValue":
+            self.attribute = self.readStruct(JVMConstantValueAttribute(self.classReader),"attribute")
+        elif self.attributeType == "Exceptions":
+            self.attribute = self.readStruct(JVMExceptionsAttribute(self.classReader),"attribute")
+        elif self.attributeType == "InnerClasses":
+            self.attribute = self.readStruct(JVMInnerClassesAttribute(self.classReader),"attribute")
+        elif self.attributeType == "EnclosingMethod":
+            self.attribute = self.readStruct(JVMEnclosingMethodAttribute(self.classReader),"attribute")
+        elif self.attributeType == "Synthetic":
+            self.attribute = self.readStruct(JVMSyntheticAttribute(self.classReader),"attribute")
+        elif self.attributeType == "Signature":
+            self.attribute = self.readStruct(JVMSignatureAttribute(self.classReader),"attribute")
+        elif self.attributeType == "SourceFile":
+            self.attribute = self.readStruct(JVMSourceFileAttribute(self.classReader),"attribute")
+        elif self.attributeType == "LineNumberTable":
+            self.attribute = self.readStruct(JVMLineNumberTableAttribute(self.classReader),"attribute")
+        elif self.attributeType == "LocalVariableTable":
+            self.attribute = self.readStruct(JVMLocalVariableTableAttribute(self.classReader),"attribute")
+        elif self.attributeType == "Deprecated":
+            self.attribute = self.readStruct(JVMDeprecatedAttribute(self.classReader),"attribute")
         else:
             self.readArray(self.attribute_length, "attribute")
+ 
+class JVMDeprecatedAttribute(JVMStructure):
+
+    def __init__(self, r):
+        JVMStructure.__init__(self, r)
+        self.read()
+    
+    def read(self):
+        pass
+        
+class JVMLocalVariableTypeTableAttribute(JVMStructure):
+
+    def __init__(self, r):
+        JVMStructure.__init__(self, r)
+        self.read()
+    
+    def read(self):
+        self.local_variable_type_table_length  = self.readShort("local_variable_type_table_length")
+        self.local_variable_type_table = []
+        for i in range(self.local_variable_type_table_length):
+            self.local_variable_type_table.append([self.readShort("start_pc["+str(i)+"]"),self.readShort("length["+str(i)+"]"),self.readShort("name_index["+str(i)+"]"),self.readShort("signature_index["+str(i)+"]"),self.readShort("index["+str(i)+"]")])
+ 
+class JVMLocalVariableTableAttribute(JVMStructure):
+
+    def __init__(self, r):
+        JVMStructure.__init__(self, r)
+        self.read()
+    
+    def read(self):
+        self.local_variable_table_length  = self.readShort("local_variable_table_length")
+        self.local_variable_table = []
+        for i in range(self.local_variable_table_length):
+            self.local_variable_table.append([self.readShort("start_pc["+str(i)+"]"),self.readShort("length["+str(i)+"]"),self.readShort("name_index["+str(i)+"]"),self.readShort("descriptor_index["+str(i)+"]"),self.readShort("index["+str(i)+"]")])
+  
+class JVMLineNumberTableAttribute(JVMStructure):
+
+    def __init__(self, r):
+        JVMStructure.__init__(self, r)
+        self.read()
+    
+    def read(self):
+        self.line_number_table_length  = self.readShort("line_number_table_length")
+        self.line_number_table = []
+        for i in range(self.line_number_table_length):
+            self.line_number_table.append([self.readShort("start_pc["+str(i)+"]"),self.readShort("line_number["+str(i)+"]")])
+
+#SourceDebugExtension 
+ 
+class JVMSourceFileAttribute(JVMStructure):
+
+    def __init__(self, r):
+        JVMStructure.__init__(self, r)
+        self.read()
+    
+    def read(self):
+        self.sourcefile_index  = self.readShort("sourcefile_index")
+        
+ 
+class JVMSignatureAttribute(JVMStructure):
+
+    def __init__(self, r):
+        JVMStructure.__init__(self, r)
+        self.read()
+    
+    def read(self):
+        self.signature_index  = self.readShort("signature_index")
+        
+ 
+class JVMSyntheticAttribute(JVMStructure):
+
+    def __init__(self, r):
+        JVMStructure.__init__(self, r)
+        self.read()
+    
+    def read(self):
+        pass
+ 
+class JVMEnclosingMethodAttribute(JVMStructure):
+
+    def __init__(self, r):
+        JVMStructure.__init__(self, r)
+        self.read()
+    
+    def read(self):
+        self.class_index  = self.readShort("class_index")
+        self.method_index = self.readShort("method_index")
+        
+class JVMInnerClassesAttribute(JVMStructure):
+
+    def __init__(self, r):
+        JVMStructure.__init__(self, r)
+        self.read()
+    
+    def read(self):
+        self.number_of_classes = self.readShort("number_of_classes")
+        self.classes = []
+        for i in range(self.number_of_classes):
+            self.classes.append([self.readShort("inner_class_info_index["+str(i)+"]"),self.readShort("outer_class_info_index["+str(i)+"]"),self.readShort("inner_name_index["+str(i)+"]"),self.readShort("inner_class_access_flags["+str(i)+"]")])
+            
+class JVMExceptionsAttribute(JVMStructure):
+
+    def __init__(self, r):
+        JVMStructure.__init__(self, r)
+        self.read()
+    
+    def read(self):
+        self.number_of_exceptions = self.readShort("number_of_exceptions")
+        self.exception_index_table = []
+        for i in range(self.number_of_exceptions):
+            self.exception_index_table.append(self.readShort("exception_index_table["+str(i)+"]"))
+        
+class JVMConstantValueAttribute(JVMStructure):
+
+    def __init__(self, r):
+        JVMStructure.__init__(self, r)
+        self.read()
+    
+    def read(self):
+        self.constantvalue_index  = self.readShort("constantvalue_index")
+        
         
 class JVMCodeAttribute(JVMStructure):
     
@@ -901,7 +1122,7 @@ class JVMCodeAttribute(JVMStructure):
         self.exception_table = []
         for i in range(self.exception_table_length):
             # TODO Exception structure
-            self.exception_table.append((self.readShort(),self.readShort(),self.readShort(),self.readShort()))
+            self.exception_table.append((self.readShort("start_pc["+str(i)+"]"),self.readShort("end_pc["+str(i)+"]"),self.readShort("handler_pc["+str(i)+"]"),self.readShort("catch_type["+str(i)+"]")))
         self.attributes_count = self.readShort("attributes_count")
         self.attributes = []
         for i in range(self.attributes_count):
@@ -1036,6 +1257,7 @@ def analyze_references(view, dispatcher):
             find_poolRef.append(name)  
             
     for token,addr in dispatcher.instructions:
+        if len(token) == 0: continue
         t = str(token[0]).strip()
         if t in find_poolRef:
             table_constantpool.append(addr)
@@ -1134,6 +1356,8 @@ class ClassView(BinaryView):
                         t = SymbolType.ImportAddressSymbol
                     elif content.__class__ == JVMStringReference:
                         t = SymbolType.DataSymbol
+                    elif content.__class__ == JVMUTF8Info:
+                        t = SymbolType.DataSymbol
                 elif "str" in str(type(content)):
                     t = SymbolType.DataSymbol
                 self.define_user_symbol(Symbol(t, i+PSEUDOMEMORY_TABLE, str(content), full_name="pool_"+str(i)))
@@ -1156,8 +1380,6 @@ class ClassView(BinaryView):
     def perform_get_entry_point(self):
         return 0x10000000
         
-    def perform_get_default_endianness():
-        return Endianness.BigEndian
 
 
 JVM.register()

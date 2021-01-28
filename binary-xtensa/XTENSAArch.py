@@ -8,7 +8,7 @@ from binaryninja.function import RegisterInfo, InstructionInfo, InstructionTextT
 from binaryninja.enums import InstructionTextTokenType, BranchType, FlagRole
 
 
-from XTENSADIS import *
+from .XTENSADIS import *
 
 class XTENSA(Architecture):
     name = 'XTENSA'
