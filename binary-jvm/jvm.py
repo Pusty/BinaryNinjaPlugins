@@ -3,6 +3,7 @@ import traceback
 import os
 
 from binaryninja import *
+from types import *
             
 InstructionNames = [
 'nop', 'aconst_null', 'iconst_m1', 'iconst_0', 'iconst_1', 'iconst_2', 'iconst_3', 'iconst_4', 
@@ -95,16 +96,62 @@ TYPE_NONE, TYPE_NONE, TYPE_NONE, TYPE_NONE, TYPE_NONE, TYPE_NONE, TYPE_NONE, TYP
 TYPE_NONE, TYPE_NONE, TYPE_NONE, TYPE_NONE, TYPE_NONE, TYPE_NONE, TYPE_NONE, TYPE_NONE,
 TYPE_NONE, TYPE_NONE, TYPE_NONE, TYPE_NONE, TYPE_NONE, TYPE_NONE, TYPE_NONE, TYPE_NONE]
 
-"""
+
+ADDR_SIZE = 4
+STACK_ADDR = 0x8000
 def getPoolEntry(il, value):
-    return il.const(4, value)
+    return il.load(4, il.const_pointer(4, value+PSEUDOMEMORY_TABLE))
     
+
 def loadLocal(il, index, size):
-    return il.const(4, 0)
+    if size == 8:
+        return il.unimplemented() #il.or_expr(8, il.load(4, il.const_pointer(STACK_ADDR+index*4)), il.logical_shift_right(8, il.load(4, il.const_pointer(STACK_ADDR+(index+1)*4)), il.const(8, 32)))
+        
+    local = il.load(size, il.const_pointer(ADDR_SIZE, STACK_ADDR+index*4))
+    if size != 4:
+        local = il.zero_extend(4, local)
+    return il.push(4, local)
     
 def storeLocal(il, index, size):
-    return il.const(4, 0)
+    if size == 8:
+        return il.unimplemented()
+        
+    valueExp = il.pop(4)
+    if size != 4:
+        valueExp = il.low_part(size, valueExp)
+        
+    return il.store(size, il.const_pointer(ADDR_SIZE, STACK_ADDR+index*4), valueExp)
 
+def loadArray(il, size):
+    if size == 8:
+        return il.unimplemented()
+        
+    arrvar = il.load(size, il.add(ADDR_SIZE, il.pop(ADDR_SIZE), il.mult(ADDR_SIZE, il.pop(4), il.const(ADDR_SIZE, size))))
+    if size != 4:
+        arrvar = il.zero_extend(4, arrvar)
+        
+    return il.push(4, arrvar)
+
+def storeArray(il, size):
+    if size == 8:
+        return il.unimplemented()
+        
+    arrayPop = il.pop(ADDR_SIZE)
+    indexPop = il.pop(4)
+    valuePop = il.pop(4) # stack is in 4 byte chunks
+    
+    if size != 4:
+        valueExp = il.low_part(size, valueExp)
+    
+    writeback = il.store(size, il.add(ADDR_SIZE, arrayPop, il.mult(ADDR_SIZE, il.pop(4), il.const(ADDR_SIZE, size))), valuePop)
+    return [arrayPop, indexPop, valuePop, writeback]
+    
+def compareOperation(il, size, operation, operand):
+    cmp_op = operation(size, il.pop(size), il.pop(size))
+    f = LowLevelILLabel()
+    if_op = il.if_expr(cmp_op, il.get_label_for_address(Architecture["JVM"], il[il.const_pointer(ADDR_SIZE, operand)].constant),  f)
+    return [if_op, lambda il, operand: il.mark_label(f)]
+    
 InstructionIL = {
     "nop":         lambda il, operand: il.nop(),
     "aconst_null": lambda il, operand: il.push(4, il.const(4,0)),
@@ -127,34 +174,155 @@ InstructionIL = {
     "ldc":         lambda il, operand: il.push(4, getPoolEntry(il,operand)),
     "ldc_w":       lambda il, operand: il.push(4, getPoolEntry(il,operand)),
     "ldc2_w":      lambda il, operand: [il.push(4, getPoolEntry(il,operand+1)),il.push(4, getPoolEntry(il,operand))],
-    "iload":       lambda il, operand: il.push(4, loadLocal(il,operand,4)),
-    "lload":       lambda il, operand: il.push(8, loadLocal(il,operand,8)),
-    "fload":       lambda il, operand: il.push(4, loadLocal(il,operand,4)),
-    "dload":       lambda il, operand: il.push(8, loadLocal(il,operand,8)),
-    "aload":       lambda il, operand: il.push(4, loadLocal(il,operand,4)),
-    "iload_0":     lambda il, operand: il.push(4, loadLocal(il,0,4)),
-    "iload_1":     lambda il, operand: il.push(4, loadLocal(il,1,4)),
-    "iload_2":     lambda il, operand: il.push(4, loadLocal(il,2,4)),
-    "iload_3":     lambda il, operand: il.push(4, loadLocal(il,3,4)),
-    "lload_0":     lambda il, operand: il.push(8, loadLocal(il,0,8)),
-    "lload_1":     lambda il, operand: il.push(8, loadLocal(il,2,8)),
-    "lload_2":     lambda il, operand: il.push(8, loadLocal(il,4,8)),
-    "lload_3":     lambda il, operand: il.push(8, loadLocal(il,6,8)),
-    "fload_0":     lambda il, operand: il.push(4, loadLocal(il,0,4)),
-    "fload_1":     lambda il, operand: il.push(4, loadLocal(il,1,4)),
-    "fload_2":     lambda il, operand: il.push(4, loadLocal(il,2,4)),
-    "fload_3":     lambda il, operand: il.push(4, loadLocal(il,3,4)),
-    "dload_0":     lambda il, operand: il.push(8, loadLocal(il,0,8)),
-    "dload_1":     lambda il, operand: il.push(8, loadLocal(il,2,8)),
-    "dload_2":     lambda il, operand: il.push(8, loadLocal(il,4,8)),
-    "dload_3":     lambda il, operand: il.push(8, loadLocal(il,6,8)),
-    "aload_0":     lambda il, operand: il.push(4, loadLocal(il,0,4)),
-    "aload_1":     lambda il, operand: il.push(4, loadLocal(il,1,4)),
-    "aload_2":     lambda il, operand: il.push(4, loadLocal(il,2,4)),
-    "aload_3":     lambda il, operand: il.push(4, loadLocal(il,3,4)),
-    #ialod
+    "iload":       lambda il, operand: loadLocal(il,operand,4),
+    "lload":       lambda il, operand: loadLocal(il,operand,8),
+    "fload":       lambda il, operand: loadLocal(il,operand,4),
+    "dload":       lambda il, operand: loadLocal(il,operand,8),
+    "aload":       lambda il, operand: loadLocal(il,operand,ADDR_SIZE),
+    "iload_0":     lambda il, operand: InstructionIL["iload"](il, 0),
+    "iload_1":     lambda il, operand: InstructionIL["iload"](il, 1),
+    "iload_2":     lambda il, operand: InstructionIL["iload"](il, 2),
+    "iload_3":     lambda il, operand: InstructionIL["iload"](il, 3),
+    "lload_0":     lambda il, operand: InstructionIL["lload"](il, 0),
+    "lload_1":     lambda il, operand: InstructionIL["lload"](il, 2),
+    "lload_2":     lambda il, operand: InstructionIL["lload"](il, 4),
+    "lload_3":     lambda il, operand: InstructionIL["lload"](il, 8),
+    "fload_0":     lambda il, operand: InstructionIL["fload"](il, 0),
+    "fload_1":     lambda il, operand: InstructionIL["fload"](il, 1),
+    "fload_2":     lambda il, operand: InstructionIL["fload"](il, 2),
+    "fload_3":     lambda il, operand: InstructionIL["fload"](il, 3),
+    "dload_0":     lambda il, operand: InstructionIL["dload"](il, 0),
+    "dload_1":     lambda il, operand: InstructionIL["dload"](il, 2),
+    "dload_2":     lambda il, operand: InstructionIL["dload"](il, 4),
+    "dload_3":     lambda il, operand: InstructionIL["dload"](il, 8),
+    "aload_0":     lambda il, operand: InstructionIL["aload"](il, 0),
+    "aload_1":     lambda il, operand: InstructionIL["aload"](il, 1),
+    "aload_2":     lambda il, operand: InstructionIL["aload"](il, 2),
+    "aload_3":     lambda il, operand: InstructionIL["aload"](il, 3),
+    "iaload":      lambda il, operand: loadArray(il, 4),
+    "laload":      lambda il, operand: loadArray(il, 8),
+    "faload":      lambda il, operand: loadArray(il, 4),
+    "daload":      lambda il, operand: loadArray(il, 8),
+    "aaload":      lambda il, operand: loadArray(il, ADDR_SIZE),
+    "baload":      lambda il, operand: loadArray(il, 1),
+    "caload":      lambda il, operand: loadArray(il, 2),
+    "saload":      lambda il, operand: loadArray(il, 2),
+    "istore":      lambda il, operand: storeLocal(il, operand, 4),
+    "lstore":      lambda il, operand: storeLocal(il, operand, 8),
+    "fstore":      lambda il, operand: storeLocal(il, operand, 4),
+    "dstore":      lambda il, operand: storeLocal(il, operand, 8),
+    "astore":      lambda il, operand: storeLocal(il, operand, ADDR_SIZE),
+    "istore_0":    lambda il, operand: InstructionIL["istore"](il, 0),
+    "istore_1":    lambda il, operand: InstructionIL["istore"](il, 1),
+    "istore_2":    lambda il, operand: InstructionIL["istore"](il, 2),
+    "istore_3":    lambda il, operand: InstructionIL["istore"](il, 3),
+    "lstore_0":    lambda il, operand: InstructionIL["lstore"](il, 0),
+    "lstore_1":    lambda il, operand: InstructionIL["lstore"](il, 2),
+    "lstore_2":    lambda il, operand: InstructionIL["lstore"](il, 4),
+    "lstore_3":    lambda il, operand: InstructionIL["lstore"](il, 6),
+    "fstore_0":    lambda il, operand: InstructionIL["fstore"](il, 0),
+    "fstore_1":    lambda il, operand: InstructionIL["fstore"](il, 1),
+    "fstore_2":    lambda il, operand: InstructionIL["fstore"](il, 2),
+    "fstore_3":    lambda il, operand: InstructionIL["fstore"](il, 3),
+    "dstore_0":    lambda il, operand: InstructionIL["dstore"](il, 0),
+    "dstore_1":    lambda il, operand: InstructionIL["dstore"](il, 2),
+    "dstore_2":    lambda il, operand: InstructionIL["dstore"](il, 4),
+    "dstore_3":    lambda il, operand: InstructionIL["dstore"](il, 6),
+    "astore_0":    lambda il, operand: InstructionIL["astore"](il, 0),
+    "astore_1":    lambda il, operand: InstructionIL["astore"](il, 1),
+    "astore_2":    lambda il, operand: InstructionIL["astore"](il, 2),
+    "astore_3":    lambda il, operand: InstructionIL["astore"](il, 3),
+    "iastore":     lambda il, operand: storeArray(il, 4),
+    "lastore":     lambda il, operand: storeArray(il, 8),
+    "fastore":     lambda il, operand: storeArray(il, 4),
+    "dastore":     lambda il, operand: storeArray(il, 8),
+    "aastore":     lambda il, operand: storeArray(il, ADDR_SIZE),
+    "bastore":     lambda il, operand: storeArray(il, 1),
+    "castore":     lambda il, operand: storeArray(il, 2),
+    "sastore":     lambda il, operand: storeArray(il, 2),
+    "pop":         lambda il, operand: il.pop(4),
+    "pop2":        lambda il, operand: il.pop(8),
+    "dup":         lambda il, operand: (lambda x: [il.push(4, x), il.push(4, x)])(il.pop(4)),
+    # these may be the wrong way around >__>
+    "dup_x1":      lambda il, operand: (lambda value2, value1: [il.push(4, value1), il.push(4, value2), il.push(4, value1)])(il.pop(4), il.pop(4)),
+    "dup_x2":      lambda il, operand: (lambda value3, value2, value1: [il.push(4,value1),il.push(4,value3), il.push(4,value2), il.push(4,value1)])(il.pop(4),il.pop(4), il.pop(4)),
+    "dup2":        lambda il, operand: (lambda value1: [il.push(8,value1), il.push(8,value1)])(il.pop(8)),
+    "dup2_x1":     lambda il, operand: (lambda value3, value1: [il.push(8,value1), il.push(4,value3), il.push(8,value1)])(il.pop(4), il.pop(8)),
+    "dup2_x2":     lambda il, operand: (lambda value4, value1: [il.push(8, value1), il.push(8,value4), il.push(8,value1)])(il.pop(8), il.pop(8)),
+    "swap":        lambda il, operand: (lambda value2, value1: [il.push(4,value1), il.push(4,value2)])(il.pop(4), il.pop(4)),
+    
+    "iadd":        lambda il, operand: il.push(4, il.add(4, il.pop(4), il.pop(4))),
+    "ladd":        lambda il, operand: il.push(8, il.add(8, il.pop(8), il.pop(8))),
+    "fadd":        lambda il, operand: il.push(4, il.float_add(4, il.pop(4), il.pop(4))),
+    "dadd":        lambda il, operand: il.push(8, il.float_add(8, il.pop(8), il.pop(8))),
+    "isub":        lambda il, operand: il.push(4, il.sub(4, il.pop(4), il.pop(4))),
+    "lsub":        lambda il, operand: il.push(8, il.sub(8, il.pop(8), il.pop(8))),
+    "fsub":        lambda il, operand: il.push(4, il.float_sub(4, il.pop(4), il.pop(4))),
+    "dsub":        lambda il, operand: il.push(8, il.float_sub(8, il.pop(8), il.pop(8))),
+    "imul":        lambda il, operand: il.push(4, il.mult(4, il.pop(4), il.pop(4))),
+    "lmul":        lambda il, operand: il.push(8, il.mult(8, il.pop(8), il.pop(8))),
+    "fmul":        lambda il, operand: il.push(4, il.float_mult(4, il.pop(4), il.pop(4))),
+    "dmul":        lambda il, operand: il.push(8, il.float_mult(8, il.pop(8), il.pop(8))),
+    "idiv":        lambda il, operand: il.push(4, il.div(4, il.pop(4), il.pop(4))),
+    "ldiv":        lambda il, operand: il.push(8, il.div(8, il.pop(8), il.pop(8))),
+    "fdiv":        lambda il, operand: il.push(4, il.float_div(4, il.pop(4), il.pop(4))),
+    "ddiv":        lambda il, operand: il.push(8, il.float_div(8, il.pop(8), il.pop(8))),
+    
+    # is this mod_signed and mod_double_prec_signed?
+    "irem":        lambda il, operand: il.push(4, il.mod_signed(4, il.pop(4), il.pop(4))),
+    "lrem":        lambda il, operand: il.push(8, il.mod_signed(8, il.pop(8), il.pop(8))),
+    "frem":        lambda il, operand: il.push(4, il.mod_double_prec_signed(4, il.pop(4), il.pop(4))),
+    "drem":        lambda il, operand: il.push(8, il.mod_double_prec_signed(8, il.pop(8), il.pop(8))),
+    
+    "ineg":        lambda il, operand: il.push(4, il.neg_expr(4, il.pop(4), il.pop(4))),
+    "lneg":        lambda il, operand: il.push(8, il.neg_expr(8, il.pop(8), il.pop(8))),
+    "fneg":        lambda il, operand: il.push(4, il.float_neg(4, il.pop(4), il.pop(4))),
+    "dneg":        lambda il, operand: il.push(8, il.float_neg(8, il.pop(8), il.pop(8))),
+    "ishl":        lambda il, operand: il.push(4, il.shift_left(4, il.pop(4), il.pop(4))),
+    "lshl":        lambda il, operand: il.push(8, il.shift_left(8, il.pop(8), il.pop(8))),
+    "ishr":        lambda il, operand: il.push(4, il.arith_shift_right(4, il.pop(4), il.pop(4))),
+    "lshr":        lambda il, operand: il.push(8, il.arith_shift_right(8, il.pop(8), il.pop(8))),
+    "iushr":       lambda il, operand: il.push(4, il.logical_shift_right(4, il.pop(4), il.pop(4))),
+    "lushr":       lambda il, operand: il.push(8, il.logical_shift_right(8, il.pop(8), il.pop(8))),
+    "iand":        lambda il, operand: il.push(4, il.and_expr(4, il.pop(4), il.pop(4))),
+    "land":        lambda il, operand: il.push(8, il.and_expr(8, il.pop(8), il.pop(8))),
+    "ior":         lambda il, operand: il.push(8, il.or_expr(8, il.pop(8), il.pop(8))),
+    "lor":         lambda il, operand: il.push(8, il.or_expr(8, il.pop(8), il.pop(8))),
+    "ixor":        lambda il, operand: il.push(8, il.xor_expr(8, il.pop(8), il.pop(8))),
+    "lxor":        lambda il, operand: il.push(8, il.xor_expr(8, il.pop(8), il.pop(8))),
+    "i2l":         lambda il, operand: il.push(8, il.sign_extend(8, il.pop(4))),
+    "i2f":         lambda il, operand: il.push(4, il.int_to_float(4, il.pop(4))),
+    "i2d":         lambda il, operand: il.push(8, il.int_to_float(8, il.pop(4))),
+    "l2i":         lambda il, operand: il.push(4, il.low_part(4, il.pop(8))),
+    "l2f":         lambda il, operand: il.push(4, il.int_to_float(4, il.pop(8))),
+    "l2d":         lambda il, operand: il.push(8, il.int_to_float(8, il.pop(8))),
+    "f2i":         lambda il, operand: il.push(4, il.float_to_int(4, il.pop(4))),
+    "f2l":         lambda il, operand: il.push(8, il.float_to_int(8, il.pop(4))),
+    "f2d":         lambda il, operand: il.push(8, il.float_convert(8, il.pop(4))),
+    "d2i":         lambda il, operand: il.push(4, il.float_to_int(4, il.pop(8))),
+    "d2l":         lambda il, operand: il.push(8, il.float_to_int(8, il.pop(8))),
+    "d2f":         lambda il, operand: il.push(4, il.float_convert(4, il.pop(8))),
+    "i2b":         lambda il, operand: il.push(4, il.sign_extend(4, il.low_part(1, il.pop(4)))),
+    "i2c":         lambda il, operand: il.push(4, il.sign_extend(4, il.low_part(2, il.pop(4)))),
+    "i2s":         lambda il, operand: il.push(4, il.sign_extend(4, il.low_part(2, il.pop(4)))),
+    "iinc":        lambda il, operand: [loadLocal(il,operand[0],4), il.push(4, il.add(4, il.pop(4), il.const(4, operand[1]))), storeLocal(il, operand[0], 4)],
+    #il.load(4, il.const_pointer(ADDR_SIZE, STACK_ADDR+operand[0]*4)),
+    
+    
+    #
+    # 94 - 9f
+    
+    "if_icmpne":   lambda il, operand: compareOperation(il, 4, il.compare_not_equal, operand),
+    "if_icmpge":   lambda il, operand: compareOperation(il, 4, il.compare_signed_greater_equal, operand),
+    
+    
+    "goto":        lambda il, operand: il.jump(il.const_pointer(ADDR_SIZE, operand)),
+    
+    "ireturn":        lambda il, operand: [il.no_ret()],
+    
 }
-"""
+
+
 OperandTokens = [
 	lambda self,value: [],    # TYPE_NONE
 	lambda self,value: [InstructionTextToken(InstructionTextTokenType.IntegerToken, "%d" % value)],  # TYPE_BYTE
@@ -244,7 +412,7 @@ def decode_instruction(data, addr):
                 length = 5
                 if len(data) < length:
                     return None, None, None, length
-                value = struct.unpack(">BHh", data[1:7])
+                value = struct.unpack(">BHh", data[1:6])
             else:
                 value = struct.unpack(">BH", data[1:4])
         elif operand == TYPE_MULTIARRAY:
@@ -256,14 +424,14 @@ def decode_instruction(data, addr):
 class JVM(Architecture):
     
     name = "JVM"
-    address_size = 2
-    default_int_size = 1
+    address_size = ADDR_SIZE
+    default_int_size = 4
     max_instr_length = 255
-    regs = { "s": RegisterInfo("s", 1) }
+    regs = { "s": RegisterInfo("s", 4) }
     stack_pointer = "s"
     endianness = Endianness.BigEndian
 
-    def perform_get_instruction_info(self, data, addr):
+    def get_instruction_info(self, data, addr):
         instr, operand, length, value = decode_instruction(data, addr)
         if instr is None:
             return None
@@ -299,7 +467,7 @@ class JVM(Architecture):
             
         return result
 
-    def perform_get_instruction_text(self, data, addr):
+    def get_instruction_text(self, data, addr):
         instr, operand, length, value = decode_instruction(data, addr)
         if instr is None:
             return None
@@ -308,21 +476,24 @@ class JVM(Architecture):
         tokens += OperandTokens[operand](self,value)
         return tokens, length
         
-    def perform_get_instruction_low_level_il(self, data, addr, il):
+    def get_instruction_low_level_il(self, data, addr, il):
         instr, operand, length, value = decode_instruction(data, addr)
         if instr is None:
             return None
             
-        """if InstructionIL.get(instr) is not None:
-            inst = InstructionIL[instr](il, operand)
+        if InstructionIL.get(instr) is not None:
+            inst = InstructionIL[instr](il, value)
             if isinstance(inst, list):
                 for i in inst:
-                    il.append(i)
+                    if isinstance(i, LambdaType):
+                        i(il, value)
+                    else:    
+                        il.append(i)
             elif inst is not None:
                 il.append(inst)
         else:
-            pass"""
-        il.append(il.unimplemented())
+            il.append(il.unimplemented())
+            
         return length
         
     def convert_to_nop(self, data, addr):
@@ -507,9 +678,9 @@ class JVM(Architecture):
 class JVMStructure():
     def __init__(self, cR):
         self.classReader = cR
-        self.structure = Structure() # a binary ninja structure
+        self.structure = TypeBuilder.structure() # a binary ninja structure
         self.structure.packed = True # don't align structure
-        self.type      = None
+        self.itype      = None
         
     """
     def resultingType(self):
@@ -519,9 +690,9 @@ class JVMStructure():
     """
         
     def resultingType(self):
-        if self.type == None:
+        if self.itype == None:
             oid = str(self.__class__.__name__)
-            self.type = Type.structure_type(self.structure)
+            self.itype = Type.structure_type(self.structure)
             pos = 0
             while True: # loop all possible structre names until one is free or equal to the current one
                 if pos == 0:
@@ -530,16 +701,17 @@ class JVMStructure():
                     id = oid+"("+str(pos)+")"       
                 alr = self.classReader.view.get_type_by_name(id)   
                 if(alr != None):
-                    if(self.type == alr or (self.type.structure != None and alr.structure != None and str(self.type.structure.members) == str(alr.structure.members))):
+                    if(self.itype == alr or (self.itype.structure != None and alr.structure != None and str(self.itype.structure().members) == str(alr.structure().members))):
                         break
                     else:
                         pos += 1
                         continue
                 else:
-                    self.classReader.view.define_type(Type.generate_auto_type_id("source", id), id, self.type)
+                    self.classReader.view.define_type(Type.generate_auto_type_id("source", id), id, self.itype)
                     break
-            self.type = Type.named_type_from_type(id, self.type)
-        return  self.type
+            self.itype = Type.named_type_from_type(id, self.itype)
+        return  self.itype
+        
     def readByte(self, name=''):
         self.structure.append(Type.int(1,False,"u1"),name)
         return self.classReader.readByte()
@@ -1351,7 +1523,7 @@ class ClassView(BinaryView):
             for i in range(len(self.cR.constantPool.poolContent)):
                 content = self.cR.constantPool.poolContent[i]
                 t = SymbolType.DataSymbol
-                if "instance" in str(type(content)):
+                if ("instance" in str(type(content))) or ("jvm" in str(type(content))):
                     if content.__class__ == JVMMethodReference or content.__class__ == JVMInterfaceMethodReference or content.__class__ == JVMInvokeDynamic:
                         t = SymbolType.ImportAddressSymbol
                     elif content.__class__ == JVMStringReference:
@@ -1360,7 +1532,11 @@ class ClassView(BinaryView):
                         t = SymbolType.DataSymbol
                 elif "str" in str(type(content)):
                     t = SymbolType.DataSymbol
-                self.define_user_symbol(Symbol(t, i+PSEUDOMEMORY_TABLE, str(content), full_name="pool_"+str(i)))
+               
+                if t == SymbolType.ImportAddressSymbol:
+                    self.define_user_symbol(Symbol(t, i+PSEUDOMEMORY_TABLE, str(content), full_name=str(content)))
+                else:
+                    self.define_user_symbol(Symbol(t, i+PSEUDOMEMORY_TABLE, str(content), full_name="pool_"+str(i)))
                 
             primitive_names = ["Not Used","Not Used","Not Used","Not Used","Boolean","Char","Float","Double","Byte","Short","Int","Long"]
             for i in range(4,12):
