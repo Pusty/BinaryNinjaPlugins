@@ -1,0 +1,13 @@
+{
+    "plugin": {
+        "name": "H8/300 Plugin",
+        "type": ["architecture"],
+        "api": "python3",
+        "description": "H8/300 Architecture",
+        "license": {
+            "name": "BSD-0-clause"
+        },
+        "version": "1.0",
+        "author": "Pusty"
+    }
+}

@@ -18,6 +18,14 @@ For using this plugin just drop the binary-jvm folder into your plugin folder.
 ![patching](/docs/patching.PNG)
 
 
+## binary-h8300 
+
+
+binary-h8300 is a plugin for Binary Ninja providing functionality to analyze, disassemble and lift (lifting works but has bugs in it that I will hopefully fix later TM) H8/300 binaries.
+Implemented decoding and behavior based on the Renesas H8/300H Software Manual
+
+For using this plugin just drop the binary-h8300 folder into your plugin folder.
+
 ## binary-xtensa (Outdated)
 
 *I personally have no need for this right now or in the near future and am not aware of anybody using it - there are also alternative binary ninja plugins for it so I'll probably not further work on this*
@@ -29,3 +37,4 @@ For using this plugin just drop the binary-xtensa folder into your plugin folder
 
 
 ![xtensa-graph](/docs/xtensa-graph.png)
+
